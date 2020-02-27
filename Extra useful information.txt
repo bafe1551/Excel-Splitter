@@ -1,0 +1,117 @@
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Data.OleDb;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+//using Excel = Microsoft.Office.Interop.Excel;
+
+namespace NCAAUpload
+{
+    public class ExcelParser 
+    {
+        public DataTable WorksheetData { get; set; }
+        public string FilePath { get; set; }
+
+        private string provider;
+        private OleDbConnection conn;
+        private OleDbDataAdapter adapter;
+        
+        private string ext;
+
+        /// <summary>
+        /// Determines the correct connection string and opens a connection
+        /// </summary>
+        /// <returns>True/False indicating successful connection</returns>
+        private bool PrepareExcelConnection()
+        {
+            // NOTE: it will be created if not exists
+            var prvdr = "Provider=Microsoft.ACE.OLEDB.16.0;Data Source=" + FilePath + ";Extended Properties=Excel 16.0 Xml";
+            
+            try
+            {
+                conn = new OleDbConnection(prvdr);
+                conn.Open();
+            }
+            catch (Exception e1)
+            {
+                prvdr = "Provider=Microsoft.ACE.OLEDB.15.0;Data Source=" + FilePath + ";Extended Properties=Excel 15.0 Xml";
+                
+                try
+                {
+                    conn = new OleDbConnection(prvdr);
+                    conn.Open();
+                }
+                catch (Exception e2)
+                {
+                    prvdr = "Provider=Microsoft.ACE.OLEDB.14.0;Data Source=" + FilePath + ";Extended Properties=Excel 14.0 Xml";
+                    try
+                    {
+                        conn = new OleDbConnection(prvdr);
+                        conn.Open();
+                    }
+                    catch (Exception e3)
+                    {
+                        prvdr = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" + FilePath + ";Extended Properties=Excel 12.0 Xml";
+                        try
+                        {
+                            conn = new OleDbConnection(prvdr);
+                            conn.Open();
+                        }
+                        catch (Exception e4)
+                        {
+                            return false;
+                        }
+                    }
+                }
+            }
+            provider = prvdr;
+            return true;
+        }
+
+        /// <summary>
+        /// Gets the sheet names in the selected workbook
+        /// </summary>
+        /// <returns>List<string></string></returns>
+        public List<string> GetSheetNames()
+        {
+            if (PrepareExcelConnection())
+            {
+                using (conn)
+                {
+                    List<string> sheetnames = new List<string>();
+                    DataTable dbSchema = conn.GetOleDbSchemaTable(OleDbSchemaGuid.Tables, null);
+                    if (dbSchema == null || dbSchema.Rows.Count < 1)
+                    {
+                        throw new Exception("Error: Could not determine the name of the first worksheet.");
+                    }
+                    for (int i = 0; i < dbSchema.Rows.Count; i++)
+                    {
+                        sheetnames.Add(dbSchema.Rows[i]["TABLE_NAME"].ToString());
+                    }
+                    return sheetnames;
+                }
+            }
+            throw new Exception("Unable to open file");
+        }
+
+        /// <summary>
+        /// Reads all the data from the specified worksheet into a DataTable
+        /// </summary>
+        /// <param name="worksheetName">Worksheet name</param>
+        public void ReadWorksheet(string worksheetName)
+        {
+            using (conn = new OleDbConnection(provider))
+            {
+                conn.Open();
+                adapter = new OleDbDataAdapter(string.Format("select * from [{0}]", worksheetName), conn);
+                new OleDbCommandBuilder(adapter);
+                WorksheetData = new DataTable();
+                adapter.Fill(WorksheetData);
+            }
+        }
+
+    }
+}

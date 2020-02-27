@@ -1,0 +1,3 @@
+Progress bar 
+Split the different functions into different c# files
+Change the look of the html UI 
